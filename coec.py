@@ -3,7 +3,7 @@
 
 """
 # Description:
-# Author: chenhao21@baidu.com
+# Author: hao.003.hao@gmail.com
 # Last Modified Time: 2015-06-23, 11:00:02
 """
 
