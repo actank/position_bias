@@ -11,6 +11,7 @@
 
 import os
 import sys
+import time
 import numpy
 import numpy.matlib as mat
 
@@ -42,13 +43,16 @@ def read_matrix(position_list_file, query_item_list_file, train_dat_file):
     ptr = open(train_dat_file)
     for line in ptr:
         terms = line.strip().split("\t")
+        if 4 > len(terms):
+            continue
         query_item = terms[0]
         position = terms[1]
+        show = float(terms[3])
         click = float(terms[2])
         if 1 == query_item_list.count(query_item) and 1 == position_list.count(position):
             position_index = position_list.index(position)
             query_item_index = query_item_list.index(query_item)
-            show_mat[position_index, query_item_index] += 1.0
+            show_mat[position_index, query_item_index] += show
             click_mat[position_index, query_item_index] += click
     ptr.close()
     return click_mat, show_mat, query_item_list, position_list
@@ -62,14 +66,18 @@ def normalize(inP, inQ):
     nor_factor = 1.0 / inP[0]
     for i in xrange(len(inP)):
         outP[i] *= nor_factor
-    for i in xrange(len(inQ)):
-        outQ[i] /= nor_factor
+    for i in xrange(len(inQ[0])):
+        outQ[0][i] /= nor_factor
     return outP, outQ
 
-
-def em_optimiz(show_mat, click_mat, mat_x, mat_r, steps=100000):
+def em_optimiz(show_mat, click_mat, steps=10000, epsilon=1e-6):
     N = len(show_mat)
     M = len(show_mat[0])
+
+    mat_x = numpy.random.rand(N, 1)
+    mat_r = numpy.random.rand(1, M)
+    mat_x1 = mat_x.copy()
+
     sum_click_col = []
     sum_click_row = []
     for i in xrange(N):
@@ -86,19 +94,33 @@ def em_optimiz(show_mat, click_mat, mat_x, mat_r, steps=100000):
         for j in xrange(M):
             temp_denominator = 0.0
             for i in xrange(N):
-                temp_denominator += (show_mat[i][j] - click_mat[i][j]) * mat_x[i][0] / (1.0 - mat_x[i][0] * mat_r[0][j])
+                if 0.0 != 1.0 - mat_x[i][0] * mat_r[0][j]:
+                    temp_denominator += (show_mat[i][j] - click_mat[i][j]) * mat_x[i][0] / (1.0 - mat_x[i][0] * mat_r[0][j])
             if 0.0 != temp_denominator:
                 mat_r[0][j] = sum_click_col[j] / temp_denominator
+        #print temp_denominator
 
         # M-step, update mat_x
         for i in xrange(N):
             temp_denominator = 0.0
             for j in xrange(M):
-                temp_denominator += (show_mat[i][j] - click_mat[i][j]) * mat_r[0][j] / (1.0 - mat_x[i][0] * mat_r[0][j])
+                if 0.0 != 1.0 - mat_x[i][0] * mat_r[0][j]:
+                    temp_denominator += (show_mat[i][j] - click_mat[i][j]) * mat_r[0][j] / (1.0 - mat_x[i][0] * mat_r[0][j])
             if 0.0 != temp_denominator:
                 mat_x[i][0] = sum_click_row[i] / temp_denominator
+        #time.sleep(10)
 
-    return mat_x, mat_r.T
+        if 0 == k%100:
+            mat_x, mat_r = normalize(mat_x, mat_r)
+            delta = 0
+            for i in xrange(N):
+                delta = max(delta, mat_x1[i] - mat_x[i], mat_x[i] - mat_x1[i])
+            print "interation:{} delta:{}".format(k, delta)
+            if delta < epsilon:
+                break
+            mat_x1 = mat_x.copy()
+
+    return normalize(mat_x, mat_r)
 
 
 def main():
@@ -110,20 +132,16 @@ def main():
     click_mat_np = numpy.array(click_mat)
     show_mat_np = numpy.array(show_mat)
 
-    N = len(click_mat_np)
-    M = len(click_mat_np[0])
 
-    mat_x = numpy.random.rand(N, 1)
-    mat_r = numpy.random.rand(1, M)
+    #print mat_x, mat_r
 
-    nP, nQ = em_optimiz(show_mat_np, click_mat_np, mat_x, mat_r)
-    outP, outQ = normalize(nP, nQ)
+    outP, outQ = em_optimiz(show_mat_np, click_mat_np)
     print "### position bias ###"
     for i in xrange(len(outP)):
         print "%s\t%f" % (position_list[i], outP[i])
     print "### query_item ctr ###"
-    for i in xrange(len((outQ))):
-        print "%s\t%f" % (query_item_list[i], outQ[i])
+    for i in xrange(len((outQ[0]))):
+        print "%s\t%f" % (query_item_list[i], outQ[0][i])
 
 
 # ------ Main Process ------ #
