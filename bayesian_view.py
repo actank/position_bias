@@ -47,8 +47,8 @@ def read_matrix(position_list_file, query_item_list_file, train_dat_file):
             continue
         query_item = terms[0]
         position = terms[1]
-        show = float(terms[3])
-        click = float(terms[2])
+        show = float(terms[2])
+        click = float(terms[3])
         if 1 == query_item_list.count(query_item) and 1 == position_list.count(position):
             position_index = position_list.index(position)
             query_item_index = query_item_list.index(query_item)
